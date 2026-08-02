@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Quantum Security Group — Community Site
 
-## Getting Started
+A Facebook-style community for QSG followers. Members post announcements, photos,
+and updates. Followers sign in, react, comment, reply, and follow — all on a
+permanent home that can't be banned.
 
-First, run the development server:
+## Tech stack
+
+- **Next.js 16** (App Router, TypeScript, Tailwind CSS)
+- **Clerk** — accounts (free forever up to 50,000 members)
+- **Supabase** — database + image storage (your own project)
+- **Vercel** — hosting
+
+## Features
+
+- Sign up / log in via Clerk (email/password or Google)
+- Profile with name + bio only (no photo uploads — anti-tampering)
+- Feed: org **members** post text + photos; **followers** view/react/comment
+- Reactions: like / love / care / wow on posts and comments
+- Threaded comments & replies
+- Follow system + profile pages
+- Admin panel: pin posts, hide/delete posts & comments, assign roles
+- Photo security: image-only files (magic-byte checked), random filenames,
+  server-side uploads only, no public write access to storage
+
+## Setup
+
+### 1. Environment variables
+
+Copy `.env.example` to `.env.local` and fill in real values.
+
+### 2. Clerk
+
+1. Create a free app at https://clerk.com
+2. Copy your **Publishable key** and **Secret key** into `.env.local`
+   (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`)
+3. Optional: enable Google sign-in under User & Authentication → Social Connections
+
+### 3. Supabase
+
+1. Create a project at https://supabase.com
+2. Open the **SQL editor** and run `supabase/migrations/0001_init.sql`
+   (creates all tables, indexes, triggers, RLS, and the `qsc-images` bucket)
+3. Copy your **Project URL** and **Service Role key** into `.env.local`
+   (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
+
+> The app uses the service-role key **server-side only** (Clerk is the auth
+> provider). Never put the service role key in `NEXT_PUBLIC_` variables.
+
+### 4. First admin
+
+The **first user** who signs up automatically becomes the **admin**. Use the
+admin panel at `/admin` to promote team members and manage posts/comments.
+
+## Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push this folder to a GitHub repo
+2. Import it at https://vercel.com/new
+3. Add the same environment variables in Project → Settings → Environment Variables
+4. Deploy
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` — development server
+- `npm run build` — production build
+- `npm run start` — serve production build
+- `npm run lint` — ESLint

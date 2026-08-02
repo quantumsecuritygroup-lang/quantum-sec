@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-base: #050505;
+  --color-panel: #0a0d10;
+  --color-card: #0e1216;
+  --color-edge: #16222b;
+  --color-glow: #00d0ff;
+  --color-glowdim: #00a8cc;
+  --color-tint: #072130;
+  --color-lobby: #b18cff;
+  --color-update: #00d0ff;
+  --color-ink: #d0e2ec;
+  --color-muted: #6d8291;
+  --color-faint: #4a6174;
+  --color-danger: #ff3b4e;
+  --color-amber: #ffd24a;
+  --font-sans: "Hack", Consolas, "Courier New", ui-monospace, monospace;
+  --font-mono: "Hack", Consolas, "Courier New", var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+  font-size: clamp(14px, 0.5vw + 11px, 18px);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #050505;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(0, 208, 255, 0.05), transparent 45%),
+    radial-gradient(circle at 85% 100%, rgba(0, 208, 255, 0.04), transparent 40%);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.015) 0px,
+    rgba(255, 255, 255, 0.015) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+main,
+header,
+footer {
+  position: relative;
+  z-index: 1;
+}
+
+::selection {
+  background: rgba(0, 208, 255, 0.25);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #14242e #050505;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #14242e;
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
