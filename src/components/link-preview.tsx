@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-const URL_RE = /(https?:\/\/[^\s]+)/g;
+const URL_RE = /(https?:\/\/[^\s]+)/;
 
 export function LinkPreview({ text, limit = 140 }: { text: string; limit?: number }) {
   const truncated =

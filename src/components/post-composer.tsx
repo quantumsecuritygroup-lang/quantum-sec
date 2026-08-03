@@ -9,16 +9,26 @@ export function PostComposer() {
   const [msg, setMsg] = useState<{ ok?: boolean; error?: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  const inFlight = useRef(false);
 
   const submit = (fd: FormData) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setMsg(null);
     startTransition(async () => {
-      const res = await createPost(fd);
-      if (res?.error) {
-        setMsg({ error: res.error });
-      } else {
-        setMsg({ ok: true });
-        setImages([]);
-        formRef.current?.reset();
+      try {
+        const res = await createPost(fd);
+        if (res?.error) {
+          setMsg({ error: res.error });
+        } else {
+          setMsg({ ok: true });
+          setImages([]);
+          formRef.current?.reset();
+        }
+      } catch {
+        setMsg({ error: "Could not reach the server. Try again." });
+      } finally {
+        inFlight.current = false;
       }
     });
   };

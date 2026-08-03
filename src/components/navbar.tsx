@@ -5,6 +5,7 @@ import { clerkConfigured } from "@/lib/config";
 import { getCurrentProfile } from "@/lib/auth";
 import { NavLinks } from "./nav-links";
 import { MobileMenu } from "./mobile-menu";
+import { NotificationBell } from "./notification-bell";
 
 export async function Navbar() {
   const configured = clerkConfigured();
@@ -20,7 +21,9 @@ export async function Navbar() {
             className="font-mono text-sm text-glow transition-colors hover:text-glowdim"
           >
             <span className="text-muted">(quantum㉿qsg)</span>
-            <span className="text-ink">-[</span>~<span className="text-ink">]$ </span>
+            <span className="hidden text-ink sm:inline">-[</span>
+            <span className="hidden sm:inline">~</span>
+            <span className="hidden text-ink sm:inline">]$ </span>
             <span className="text-glow">QSG</span>
           </Link>
           <NavLinks />
@@ -106,6 +109,7 @@ function SignedInControls({
           ADMIN
         </Link>
       )}
+      {profile && <NotificationBell isAdmin={profile.role === "admin"} />}
       <UserButton />
     </div>
   );

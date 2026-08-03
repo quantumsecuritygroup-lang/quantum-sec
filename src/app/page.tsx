@@ -2,9 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { clerkConfigured, supabaseConfigured } from "@/lib/config";
 import { ensureProfile } from "@/lib/auth";
-import { getFeed } from "@/lib/data";
-import { PostCard } from "@/components/post-card";
+import { getFeedPage } from "@/lib/data";
 import { PostComposer } from "@/components/post-composer";
+import { PostFeed } from "@/components/post-feed";
 import { SideRailLeft } from "@/components/side-rail-left";
 import { SideRailRight } from "@/components/side-rail-right";
 import { SetupScreen } from "@/components/setup-screen";
@@ -14,7 +14,7 @@ export default async function HomePage() {
 
   const { userId } = await auth();
   const profile = userId ? await ensureProfile() : null;
-  const items = await getFeed(profile?.id ?? null);
+  const initial = await getFeedPage("main", profile?.id ?? null);
 
   const canPost = profile?.role === "admin" || profile?.role === "member";
 
@@ -45,25 +45,21 @@ export default async function HomePage() {
 
         {canPost && <PostComposer />}
 
-        <div className="space-y-4">
-          {items.length === 0 ? (
-            <div className="border border-edge bg-card p-8 text-center">
-              <p className="font-mono text-sm text-muted">$ No posts yet.</p>
-              <p className="mt-2 font-mono text-xs text-faint">
-                When your team publishes, the archive appears here.
-              </p>
-            </div>
-          ) : (
-            items.map((item) => (
-              <PostCard
-                key={item.post.id}
-                item={item}
-                canModerate={profile?.role === "admin"}
-                signedIn={!!userId}
-              />
-            ))
-          )}
-        </div>
+        {initial.pinned.length === 0 && initial.items.length === 0 && !initial.nextCursor ? (
+          <div className="border border-edge bg-card p-8 text-center">
+            <p className="font-mono text-sm text-muted">$ No posts yet.</p>
+            <p className="mt-2 font-mono text-xs text-faint">
+              When your team publishes, the archive appears here.
+            </p>
+          </div>
+        ) : (
+          <PostFeed
+            scope="main"
+            canModerate={profile?.role === "admin"}
+            signedIn={!!userId}
+            initial={initial}
+          />
+        )}
 
         {!supabaseConfigured() && (
           <p className="font-mono text-[11px] text-faint">

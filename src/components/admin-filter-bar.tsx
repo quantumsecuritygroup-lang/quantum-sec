@@ -31,6 +31,7 @@ export function AdminFilterBar({
         className="flex items-center gap-2"
       >
         <input
+          key={q}
           name="q"
           defaultValue={q}
           placeholder="search posts..."

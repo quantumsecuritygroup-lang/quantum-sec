@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { searchPosts, type PostSearchResult } from "@/lib/actions";
 
@@ -10,19 +10,38 @@ export function PostSearch() {
   const [searched, setSearched] = useState(false);
   const [pending, startTransition] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seq = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+      seq.current += 1;
+    };
+  }, []);
 
   const runSearch = (value: string) => {
     if (timer.current) clearTimeout(timer.current);
     if (!value.trim()) {
+      seq.current += 1;
       setResults(null);
       setSearched(false);
       return;
     }
     timer.current = setTimeout(() => {
+      const mySeq = ++seq.current;
       startTransition(async () => {
-        const res = await searchPosts(value);
-        setResults(res);
-        setSearched(true);
+        try {
+          const res = await searchPosts(value);
+          if (mySeq === seq.current) {
+            setResults(res);
+            setSearched(true);
+          }
+        } catch {
+          if (mySeq === seq.current) {
+            setResults(null);
+            setSearched(false);
+          }
+        }
       });
     }, 250);
   };

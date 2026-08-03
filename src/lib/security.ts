@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { getServerClient } from "./supabase";
+import { parseClientIp } from "./ip";
 
 export type SecurityEventType =
   | "ddos"
@@ -25,9 +26,7 @@ export interface SecurityEventInput {
 
 async function getIp(): Promise<string> {
   const h = await headers();
-  const fwd = h.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]?.trim() ?? "";
-  return h.get("x-real-ip") ?? "";
+  return parseClientIp(h.get("x-forwarded-for")) || h.get("x-real-ip") || "";
 }
 
 export async function logSecurityEvent(input: SecurityEventInput): Promise<void> {
@@ -48,26 +47,4 @@ export async function logSecurityEvent(input: SecurityEventInput): Promise<void>
   } catch {
     // never let logging break the request
   }
-}
-
-export async function isBannedProfileId(profileId: string): Promise<boolean> {
-  const sb = getServerClient();
-  if (!sb) return false;
-  const { data } = await sb
-    .from("profiles")
-    .select("banned")
-    .eq("id", profileId)
-    .maybeSingle();
-  return !!data?.banned;
-}
-
-export async function isIpBlocked(ip: string): Promise<boolean> {
-  const sb = getServerClient();
-  if (!sb || !ip) return false;
-  const { data } = await sb
-    .from("blocked_ips")
-    .select("ip")
-    .eq("ip", ip)
-    .maybeSingle();
-  return !!data;
 }

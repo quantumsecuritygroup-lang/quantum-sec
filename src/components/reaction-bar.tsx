@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useRef, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toggleReaction, getReactionUsers, type ReactionUser } from "@/lib/actions";
 import {
   REACTION_EMOJIS,
@@ -27,41 +28,97 @@ export function ReactionBar({
   onError?: (msg: string) => void;
 }) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  const [counts, setCounts] = useState<ReactionMap>(() => ({ ...reactions }));
+  const [mine, setMine] = useState<ReactionEmoji | null>(myReaction);
+  const loadedFor = useRef<string | null>(null);
+  const [prevReactions, setPrevReactions] = useState(reactions);
+  const [prevMine, setPrevMine] = useState(myReaction);
+  if (reactions !== prevReactions) {
+    setPrevReactions(reactions);
+    setCounts({ ...reactions });
+  }
+  if (myReaction !== prevMine) {
+    setPrevMine(myReaction);
+    setMine(myReaction);
+  }
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [open, setOpen] = useState(false);
   const [users, setUsers] = useState<ReactionUser[]>([]);
-  const total = Object.values(reactions).reduce((a, b) => a + b, 0);
+  const usersSeq = useRef(0);
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   const [activeFilter, setActiveFilter] = useState<ReactionEmoji | null>(null);
+
+  const targetKey = postId ? `post:${postId}` : commentId ? `comment:${commentId}` : null;
+
+  const revert = (prev: ReactionMap, prevMine: ReactionEmoji | null) => {
+    setCounts(prev);
+    setMine(prevMine);
+  };
 
   const handle = (emoji: ReactionEmoji) => {
     if (!signedIn) {
       onError?.("You must be signed in to react.");
       return;
     }
+    if (pending) return;
+    const prev = { ...counts };
+    const prevMine = mine;
+    if (mine === emoji) {
+      setCounts((c) => ({ ...c, [emoji]: (c[emoji] ?? 0) - 1 }));
+      setMine(null);
+    } else {
+      const next = { ...counts };
+      if (mine) next[mine] = (next[mine] ?? 0) - 1;
+      next[emoji] = (next[emoji] ?? 0) + 1;
+      setCounts(next);
+      setMine(emoji);
+    }
     const fd = new FormData();
     if (postId) fd.set("post_id", postId);
     if (commentId) fd.set("comment_id", commentId);
     fd.set("emoji", emoji);
     startTransition(async () => {
-      const res = await toggleReaction(fd);
-      if (res?.error) onError?.(res.error);
+      try {
+        const res = await toggleReaction(fd);
+        if (res?.error) {
+          revert(prev, prevMine);
+          onError?.(res.error);
+        }
+        router.refresh();
+      } catch {
+        revert(prev, prevMine);
+        onError?.(prevMine === emoji ? "Failed to remove reaction." : "Failed to react.");
+      }
     });
   };
 
   const loadUsers = async (emoji: ReactionEmoji | null) => {
     if (!targetKey) return;
+    const key = `${targetKey}:${emoji ?? "all"}`;
+    if (loadedFor.current === key) {
+      setOpen(true);
+      setActiveFilter(emoji);
+      return;
+    }
+    const seq = ++usersSeq.current;
     setOpen(true);
     setActiveFilter(emoji);
     setLoadingUsers(true);
-    const res = await getReactionUsers(
-      postId ? { postId } : { commentId }
-    );
-    setUsers(res);
-    setLoadingUsers(false);
+    try {
+      const res = await getReactionUsers(
+        postId ? { postId } : { commentId }
+      );
+      if (seq === usersSeq.current) {
+        setUsers(res);
+        setLoadingUsers(false);
+        loadedFor.current = key;
+      }
+    } catch {
+      if (seq === usersSeq.current) setLoadingUsers(false);
+    }
   };
-
-  const targetKey = postId ? `post:${postId}` : commentId ? `comment:${commentId}` : null;
 
   const filtered = activeFilter ? users.filter((u) => u.emoji === activeFilter) : users;
 
@@ -69,8 +126,8 @@ export function ReactionBar({
     <div className="relative">
       <div className="flex items-center gap-1">
         {REACTION_EMOJIS.map((emoji) => {
-          const active = myReaction === emoji;
-          const count = reactions[emoji] ?? 0;
+          const active = mine === emoji;
+          const count = counts[emoji] ?? 0;
           return (
             <button
               key={emoji}
@@ -138,7 +195,7 @@ export function ReactionBar({
               }}
             />
             {REACTION_EMOJIS.map((e) => {
-              const c = reactions[e] ?? 0;
+              const c = counts[e] ?? 0;
               if (c === 0) return null;
               return (
                 <FilterChip

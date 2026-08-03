@@ -1,7 +1,7 @@
 "use client";
 
-import { useTransition } from "react";
-import { adminBlockIp, adminUnblockIp, adminSetBan } from "@/lib/actions";
+import { useState, useTransition } from "react";
+import { adminBlockIp, adminUnblockIp, adminSetBan, adminClearEvents } from "@/lib/actions";
 import type { SecurityEvent } from "@/lib/supabase";
 import { timeAgo } from "@/lib/utils";
 
@@ -24,39 +24,75 @@ const TYPE_LABEL: Record<string, string> = {
 export function SecurityMonitor({
   events,
   blockedIps,
+  totalEvents,
 }: {
   events: SecurityEvent[];
   blockedIps: { ip: string }[];
+  totalEvents: number;
 }) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const blocked = new Set(blockedIps.map((b) => b.ip));
 
+  const run = (fn: () => Promise<{ error?: string } | undefined>) => {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fn();
+        if (res?.error) setError(res.error);
+      } catch {
+        setError("Action failed. Try again.");
+      }
+    });
+  };
+
   const block = (ip: string) => {
+    if (!window.confirm(`Block IP ${ip}? This IP will be denied at the edge.`)) return;
     const fd = new FormData();
     fd.set("ip", ip);
     fd.set("reason", "blocked from security monitor");
-    startTransition(async () => {
-      await adminBlockIp(fd);
-    });
+    run(() => adminBlockIp(fd));
   };
   const unblock = (ip: string) => {
     const fd = new FormData();
     fd.set("ip", ip);
-    startTransition(async () => {
-      await adminUnblockIp(fd);
-    });
+    run(() => adminUnblockIp(fd));
   };
   const banUser = (userId: string) => {
+    if (!window.confirm("Ban this user?")) return;
     const fd = new FormData();
     fd.set("id", userId);
     fd.set("banned", "1");
-    startTransition(async () => {
-      await adminSetBan(fd);
-    });
+    run(() => adminSetBan(fd));
+  };
+  const clearEvents = () => {
+    if (!window.confirm("Clear ALL security events?")) return;
+    run(() => adminClearEvents());
   };
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-xs text-muted">
+          {events.length} shown / {totalEvents} total
+        </p>
+        {totalEvents > 0 && (
+          <button
+            onClick={clearEvents}
+            disabled={pending}
+            className="border border-danger/40 px-2 py-1 font-mono text-[11px] text-danger transition-colors hover:bg-danger/10 disabled:opacity-30"
+          >
+            CLEAR ALL
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <p className="border border-danger/40 bg-danger/5 px-2 py-1.5 font-mono text-xs text-danger">
+          ! {error}
+        </p>
+      )}
+
       {blockedIps.length > 0 && (
         <div className="border border-danger/40 bg-danger/5 p-3">
           <p className="mb-2 font-mono text-xs text-danger">$ blocked IPs</p>

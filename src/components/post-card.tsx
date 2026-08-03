@@ -50,6 +50,7 @@ export function PostCard({
           <CategoryTag category={post.category} />
           <span className="text-faint">{formatDate(post.created_at)}</span>
           {post.pinned && <span className="text-amber">📌 PINNED</span>}
+          {post.hidden && <span className="text-danger">🚫 HIDDEN</span>}
         </div>
         {canModerate && (
           <AdminPostControls

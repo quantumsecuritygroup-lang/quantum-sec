@@ -4,6 +4,7 @@ import {
   type Post,
   type Profile,
   type ReactionEmoji,
+  type RosterMember,
   type SecurityEvent,
   type BlockedIp,
   emptyReactions,
@@ -38,15 +39,18 @@ export interface ProfileStats {
   isSelf: boolean;
 }
 
-export interface AdminCommentRow extends Comment {
+export interface AdminCommentWithAuthor extends Comment {
   author: Profile;
 }
 
 export interface AdminFilters {
   q?: string;
   status?: "all" | "visible" | "hidden" | "pinned";
-  page?: number;
+  mainPage?: number;
+  lobbyPage?: number;
 }
+
+export const FEED_PAGE_SIZE = 20;
 
 export interface AdminData {
   stats: {
@@ -59,10 +63,11 @@ export interface AdminData {
   users: Profile[];
   mainPosts: PostWithMeta[];
   lobbyPosts: PostWithMeta[];
-  comments: AdminCommentRow[];
+  comments: AdminCommentWithAuthor[];
   mainTotal: number;
   lobbyTotal: number;
-  postPage: number;
+  mainPage: number;
+  lobbyPage: number;
   perPage: number;
   filters: AdminFilters;
 }
@@ -138,30 +143,58 @@ async function buildPostMeta(
     }));
 }
 
-export async function getFeed(
+export async function getFeedPage(
+  scope: "main" | "lobby",
   myProfileId: string | null,
-  includeHidden = false,
-  scope: "main" | "lobby" = "main"
-): Promise<PostWithMeta[]> {
+  cursor?: { createdAt: string; id: string }
+): Promise<{ pinned: PostWithMeta[]; items: PostWithMeta[]; nextCursor: { createdAt: string; id: string } | null }> {
   const sb = getServerClient();
-  if (!sb) return [];
+  if (!sb) return { pinned: [], items: [], nextCursor: null };
 
-  let query = sb
+  const pinnedQ = sb
     .from("posts")
     .select("*")
     .eq("scope", scope)
-    .order("pinned", { ascending: false })
+    .eq("hidden", false)
+    .eq("pinned", true)
     .order("created_at", { ascending: false })
-    .limit(50);
-  if (!includeHidden) query = query.eq("hidden", false);
+    .limit(8);
+  const [pinnedRes, feedRes] = await Promise.all([
+    pinnedQ,
+    (() => {
+      let q = sb
+        .from("posts")
+        .select("*")
+        .eq("scope", scope)
+        .eq("hidden", false)
+        .eq("pinned", false)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(FEED_PAGE_SIZE + 1);
+      if (cursor) {
+        // Keyset pagination (stable across inserts/deletes): strictly older
+        // than the cursor, or equal timestamp with a lexicographically smaller id.
+        q = q.or(
+          `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+        );
+      }
+      return q;
+    })(),
+  ]);
 
-  const { data: posts } = await query;
-  if (!posts?.length) return [];
-  return buildPostMeta(posts as Post[], myProfileId);
-}
-
-export async function getLobbyFeed(myProfileId: string | null) {
-  return getFeed(myProfileId, false, "lobby");
+  const list = (feedRes.data ?? []) as Post[];
+  const hasMore = list.length > FEED_PAGE_SIZE;
+  const page = hasMore ? list.slice(0, FEED_PAGE_SIZE) : list;
+  const [items, pinned] = await Promise.all([
+    buildPostMeta(page, myProfileId),
+    buildPostMeta((pinnedRes.data ?? []) as Post[], myProfileId),
+  ]);
+  const last = page[page.length - 1];
+  return {
+    pinned,
+    items,
+    nextCursor: hasMore && last ? { createdAt: last.created_at, id: last.id } : null,
+  };
 }
 
 export async function getPostDetail(
@@ -176,7 +209,10 @@ export async function getPostDetail(
     .select("*")
     .eq("id", postId)
     .maybeSingle();
-  if (!post || post.hidden) return null;
+  if (!post) return null;
+  // Non-authors cannot view hidden posts; the author may (my own hidden
+  // post is still accessible so moderation notifications can redirect here).
+  if (post.hidden && myProfileId !== post.author_id) return null;
 
   const { data: author } = await sb
     .from("profiles")
@@ -324,9 +360,12 @@ export async function getAdminData(filters: AdminFilters = {}): Promise<AdminDat
   const q = (filters.q ?? "").trim();
   const status = filters.status ?? "all";
   const perPage = 25;
-  const postPage = Math.max(1, filters.page ?? 1);
-  const from = (postPage - 1) * perPage;
-  const to = from + perPage - 1;
+  const mainPage = Math.max(1, filters.mainPage ?? 1);
+  const lobbyPage = Math.max(1, filters.lobbyPage ?? 1);
+  const mainFrom = (mainPage - 1) * perPage;
+  const mainTo = mainFrom + perPage - 1;
+  const lobbyFrom = (lobbyPage - 1) * perPage;
+  const lobbyTo = lobbyFrom + perPage - 1;
 
   const applyFilters = <T,>(query: T): T => {
     let qx = query;
@@ -340,7 +379,8 @@ export async function getAdminData(filters: AdminFilters = {}): Promise<AdminDat
     return qx;
   };
 
-  const [usersRes, reactRes, followRes, postCountRes] = await Promise.all([
+  const [userCountRes, usersRes, reactRes, followRes, postCountRes] = await Promise.all([
+    sb.from("profiles").select("id", { count: "exact", head: true }),
     sb.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
     sb.from("reactions").select("id", { count: "exact", head: true }),
     sb.from("follows").select("follower_id", { count: "exact", head: true }),
@@ -351,8 +391,8 @@ export async function getAdminData(filters: AdminFilters = {}): Promise<AdminDat
     await Promise.all([
       applyFilters(sb.from("posts").select("id", { count: "exact", head: true })).eq("scope", "main"),
       applyFilters(sb.from("posts").select("id", { count: "exact", head: true })).eq("scope", "lobby"),
-      applyFilters(sb.from("posts").select("*").order("created_at", { ascending: false }).eq("scope", "main")).range(from, to),
-      applyFilters(sb.from("posts").select("*").order("created_at", { ascending: false }).eq("scope", "lobby")).range(from, to),
+      applyFilters(sb.from("posts").select("*").order("created_at", { ascending: false }).eq("scope", "main")).range(mainFrom, mainTo),
+      applyFilters(sb.from("posts").select("*").order("created_at", { ascending: false }).eq("scope", "lobby")).range(lobbyFrom, lobbyTo),
       sb.from("comments").select("id", { count: "exact", head: true }),
     ]);
 
@@ -378,7 +418,7 @@ export async function getAdminData(filters: AdminFilters = {}): Promise<AdminDat
 
   return {
     stats: {
-      users: users.length,
+      users: userCountRes.count ?? 0,
       posts: postCountRes.count ?? 0,
       comments: commentCountRes.count ?? 0,
       reactions: reactRes.count ?? 0,
@@ -393,7 +433,8 @@ export async function getAdminData(filters: AdminFilters = {}): Promise<AdminDat
     })),
     mainTotal: mainCountRes.count ?? 0,
     lobbyTotal: lobbyCountRes.count ?? 0,
-    postPage,
+    mainPage,
+    lobbyPage,
     perPage,
     filters: { q, status },
   };
@@ -402,13 +443,14 @@ export async function getAdminData(filters: AdminFilters = {}): Promise<AdminDat
 export interface SecurityData {
   events: SecurityEvent[];
   blockedIps: BlockedIp[];
+  totalEvents: number;
 }
 
 export async function getSecurityData(): Promise<SecurityData | null> {
   const sb = getServerClient();
   if (!sb) return null;
 
-  const [eventsRes, blockedRes] = await Promise.all([
+  const [eventsRes, blockedRes, countRes] = await Promise.all([
     sb
       .from("security_events")
       .select("*")
@@ -419,11 +461,13 @@ export async function getSecurityData(): Promise<SecurityData | null> {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(200),
+    sb.from("security_events").select("id", { count: "exact", head: true }),
   ]);
 
   return {
     events: (eventsRes.data ?? []) as SecurityEvent[],
     blockedIps: (blockedRes.data ?? []) as BlockedIp[],
+    totalEvents: countRes.count ?? 0,
   };
 }
 
@@ -434,6 +478,17 @@ export interface SiteStats {
   users: number;
   online: number;
   threats: number;
+}
+
+export async function getRosterMembers(): Promise<RosterMember[]> {
+  const sb = getServerClient();
+  if (!sb) return [];
+  const { data } = await sb
+    .from("roster_members")
+    .select("id, name, sort_order, created_at, updated_at")
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+  return (data ?? []) as RosterMember[];
 }
 
 export async function getSiteStats(): Promise<SiteStats> {

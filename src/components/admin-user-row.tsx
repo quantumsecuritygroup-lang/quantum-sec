@@ -1,26 +1,40 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { adminSetRole, adminSetBan } from "@/lib/actions";
 import type { Profile } from "@/lib/supabase";
 import { Avatar } from "./ui/avatar";
 
 export function AdminUserRow({ user }: { user: Profile }) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const run = (role: string) => {
     const fd = new FormData();
     fd.set("id", user.id);
     fd.set("role", role);
+    setError(null);
     startTransition(async () => {
-      await adminSetRole(fd);
+      try {
+        const res = await adminSetRole(fd);
+        if (res?.error) setError(res.error);
+      } catch {
+        setError("Action failed. Try again.");
+      }
     });
   };
   const setBan = (banned: boolean) => {
+    if (banned && !window.confirm(`Ban ${user.display_name || user.username}?`)) return;
     const fd = new FormData();
     fd.set("id", user.id);
     fd.set("banned", banned ? "1" : "0");
+    setError(null);
     startTransition(async () => {
-      await adminSetBan(fd);
+      try {
+        const res = await adminSetBan(fd);
+        if (res?.error) setError(res.error);
+      } catch {
+        setError("Action failed. Try again.");
+      }
     });
   };
   return (
@@ -80,6 +94,9 @@ export function AdminUserRow({ user }: { user: Profile }) {
           </button>
           {pending && <span className="text-faint">...</span>}
         </div>
+        {error && (
+          <p className="mt-1 font-mono text-[10px] text-danger">! {error}</p>
+        )}
       </td>
     </tr>
   );

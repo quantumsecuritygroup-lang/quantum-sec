@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 import { clerkConfigured } from "@/lib/config";
 import { ensureProfile } from "@/lib/auth";
-import { getAdminData, getSecurityData, type AdminFilters, type PostWithMeta } from "@/lib/data";
+import { getAdminData, getSecurityData, getRosterMembers, type AdminFilters, type PostWithMeta } from "@/lib/data";
 import { AdminUserRow } from "@/components/admin-user-row";
 import { AdminCommentRow } from "@/components/admin-comment-row";
 import { AdminPostRow } from "@/components/admin-post-row";
 import { AdminFilterBar } from "@/components/admin-filter-bar";
+import { AdminRosterManager } from "@/components/admin-roster-manager";
 import { SecurityMonitor } from "@/components/security-monitor";
 import { SetupScreen } from "@/components/setup-screen";
 
@@ -14,14 +16,16 @@ export const dynamic = "force-dynamic";
 
 function parseFilters(sp: URLSearchParams): AdminFilters {
   const status = sp.get("status");
-  const page = Number(sp.get("page"));
+  const mainPage = Number(sp.get("m"));
+  const lobbyPage = Number(sp.get("l"));
   return {
     q: sp.get("q") ?? "",
     status:
       status === "visible" || status === "hidden" || status === "pinned"
         ? status
         : "all",
-    page: Number.isFinite(page) && page > 0 ? page : 1,
+    mainPage: Number.isFinite(mainPage) && mainPage > 0 ? mainPage : 1,
+    lobbyPage: Number.isFinite(lobbyPage) && lobbyPage > 0 ? lobbyPage : 1,
   };
 }
 
@@ -33,6 +37,8 @@ function PostTable({
   page,
   perPage,
   emptyLabel,
+  filters,
+  pageParam,
 }: {
   title: string;
   accent: string;
@@ -41,6 +47,8 @@ function PostTable({
   page: number;
   perPage: number;
   emptyLabel: string;
+  filters: AdminFilters;
+  pageParam: "m" | "l";
 }) {
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   return (
@@ -79,7 +87,13 @@ function PostTable({
         </table>
       </div>
       {total > perPage && (
-        <Pagination page={page} totalPages={totalPages} total={total} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          filters={filters}
+          pageParam={pageParam}
+        />
       )}
     </section>
   );
@@ -89,15 +103,20 @@ function Pagination({
   page,
   totalPages,
   total,
+  filters,
+  pageParam,
 }: {
   page: number;
   totalPages: number;
   total: number;
+  filters: AdminFilters;
+  pageParam: "m" | "l";
 }) {
   const href = (n: number) => {
     const sp = new URLSearchParams();
-    if (n <= 1) sp.delete("page");
-    else sp.set("page", String(n));
+    if (filters.q) sp.set("q", filters.q);
+    if (filters.status && filters.status !== "all") sp.set("status", filters.status);
+    if (n > 1) sp.set(pageParam, String(n));
     const qs = sp.toString();
     return qs ? `/root_qsg?${qs}` : "/root_qsg";
   };
@@ -135,8 +154,11 @@ export default async function AdminPage({
 }) {
   if (!clerkConfigured()) return <SetupScreen what="clerk" />;
 
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
   const profile = await ensureProfile();
-  if (!profile) return <SetupScreen what="clerk" />;
+  if (!profile) redirect("/sign-in");
   if (profile.role !== "admin") redirect("/");
 
   const resolved = await searchParams;
@@ -147,6 +169,7 @@ export default async function AdminPage({
   const filters = parseFilters(sp);
   const data = await getAdminData(filters);
   const security = await getSecurityData();
+  const roster = await getRosterMembers();
   if (!data) return <SetupScreen what="database" />;
 
   const stats: { label: string; value: number; danger?: boolean }[] = [
@@ -155,7 +178,7 @@ export default async function AdminPage({
     { label: "COMMENTS", value: data.stats.comments },
     { label: "REACTIONS", value: data.stats.reactions },
     { label: "FOLLOWS", value: data.stats.follows },
-    { label: "SECURITY EVENTS", value: security?.events.length ?? 0, danger: true },
+    { label: "SECURITY EVENTS", value: security?.totalEvents ?? 0, danger: true },
   ];
 
   return (
@@ -203,6 +226,8 @@ export default async function AdminPage({
         </div>
       </section>
 
+      <AdminRosterManager initial={roster} />
+
       <div className="flex flex-wrap items-center justify-between gap-3 border border-glow/30 bg-panel/50 p-3">
         <p className="font-mono text-xs text-glow">$ filter posts</p>
         <AdminFilterBar q={data.filters.q ?? ""} status={data.filters.status ?? "all"} />
@@ -213,9 +238,11 @@ export default async function AdminPage({
         accent="#00d0ff"
         items={data.mainPosts}
         total={data.mainTotal}
-        page={data.postPage}
+        page={data.mainPage}
         perPage={data.perPage}
         emptyLabel="No main feed posts."
+        filters={filters}
+        pageParam="m"
       />
 
       <PostTable
@@ -223,9 +250,11 @@ export default async function AdminPage({
         accent="#b18cff"
         items={data.lobbyPosts}
         total={data.lobbyTotal}
-        page={data.postPage}
+        page={data.lobbyPage}
         perPage={data.perPage}
         emptyLabel="No lobby posts."
+        filters={filters}
+        pageParam="l"
       />
 
       <section>
@@ -264,7 +293,11 @@ export default async function AdminPage({
           <span className="text-faint">— attacker / suspicious activity</span>
         </h2>
         {security ? (
-          <SecurityMonitor events={security.events} blockedIps={security.blockedIps} />
+          <SecurityMonitor
+            events={security.events}
+            blockedIps={security.blockedIps}
+            totalEvents={security.totalEvents}
+          />
         ) : (
           <p className="font-mono text-xs text-faint">Security log unavailable.</p>
         )}

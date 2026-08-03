@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   },
   description:
     "The official community of the Quantum Security Group. Members post, followers react and discuss.",
+  icons: {
+    icon: "/icon.png",
+  },
 };
 
 export const viewport: Viewport = {

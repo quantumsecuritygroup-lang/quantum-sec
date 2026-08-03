@@ -12,15 +12,20 @@ export function LobbyComposer() {
 
   const submit = (fd: FormData) => {
     fd.set("scope", "lobby");
+    setMsg(null);
     startTransition(async () => {
-      const res = await createPost(fd);
-      if (res?.error) {
-        setMsg({ error: res.error });
-      } else {
-        setMsg({ ok: true });
-        setImage(null);
-        formRef.current?.reset();
-        setOpen(false);
+      try {
+        const res = await createPost(fd);
+        if (res?.error) {
+          setMsg({ error: res.error });
+        } else {
+          setMsg({ ok: true });
+          setImage(null);
+          formRef.current?.reset();
+          setOpen(false);
+        }
+      } catch {
+        setMsg({ error: "Could not reach the server. Try again." });
       }
     });
   };

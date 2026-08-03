@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import Link from "next/link";
 import { addComment } from "@/lib/actions";
 import type { CommentNode } from "@/lib/data";
@@ -21,16 +21,25 @@ export function CommentSection({
   const [error, setError] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const inFlight = useRef(false);
 
   const submit = (fd: FormData, parentId: string | null = null) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     fd.set("post_id", postId);
     if (parentId) fd.set("parent_id", parentId);
     startTransition(async () => {
-      const res = await addComment(fd);
-      if (res?.error) setError(res.error);
-      else {
-        setError(null);
-        setReplyingTo(null);
+      try {
+        const res = await addComment(fd);
+        if (res?.error) setError(res.error);
+        else {
+          setError(null);
+          setReplyingTo(null);
+        }
+      } catch {
+        setError("Could not reach the server. Try again.");
+      } finally {
+        inFlight.current = false;
       }
     });
   };

@@ -2,7 +2,27 @@ import Link from "next/link";
 import Image from "next/image";
 import { MembersSection } from "./members-section";
 
-export function SideRailLeft() {
+export function SideRailLeft({ variant = "home" }: { variant?: "home" | "lobby" }) {
+  if (variant === "lobby") {
+    return (
+      <aside className="hidden w-full space-y-4 lg:block">
+        <div className="border border-lobby/40 bg-panel p-4">
+          <div className="flex flex-col items-center gap-2">
+            <Image
+              src="/logo.png"
+              alt="QSG logo"
+              width={140}
+              height={140}
+              className="h-auto w-5/6 shrink-0 object-contain"
+            />
+            <p className="font-mono text-xs text-lobby">(quantum㉿qsg)</p>
+          </div>
+        </div>
+
+        <MembersSection variant="rail" />
+      </aside>
+    );
+  }
   return (
     <aside className="hidden w-full space-y-4 lg:block">
       <div className="border border-glow/30 bg-panel p-4">

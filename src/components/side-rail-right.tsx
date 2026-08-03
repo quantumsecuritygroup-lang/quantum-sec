@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getSiteStats } from "@/lib/data";
 import { PostSearch } from "./post-search";
 
-export async function SideRailRight() {
+export async function SideRailRight({ variant = "home" }: { variant?: "home" | "lobby" }) {
   const stats = await getSiteStats();
   const rows: { label: string; value: number }[] = [
     { label: "MEMBERS", value: stats.users },
@@ -13,7 +13,7 @@ export async function SideRailRight() {
 
   return (
     <aside className="hidden w-full space-y-4 lg:block">
-      <PostSearch />
+      {variant === "home" && <PostSearch />}
 
       <div className="border border-edge bg-card p-4">
         <p className="mb-3 font-mono text-xs text-glow">$ uptime &amp; stats</p>
@@ -50,23 +50,25 @@ export async function SideRailRight() {
         </nav>
       </div>
 
-      <div className="border border-edge bg-card p-4">
-        <p className="mb-3 font-mono text-xs text-glow">$ mission</p>
-        <ul className="space-y-2 font-mono text-[11px] leading-5 text-muted">
-          <li className="flex items-start gap-2">
-            <span className="text-glow">›</span>
-            <span>Share &amp; archive work</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-glow">›</span>
-            <span>Open lobby for the community</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-glow">›</span>
-            <span>Stay off the platform kill switch</span>
-          </li>
-        </ul>
-      </div>
+      {variant === "home" && (
+        <div className="border border-edge bg-card p-4">
+          <p className="mb-3 font-mono text-xs text-glow">$ mission</p>
+          <ul className="space-y-2 font-mono text-[11px] leading-5 text-muted">
+            <li className="flex items-start gap-2">
+              <span className="text-glow">›</span>
+              <span>Share &amp; archive work</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-glow">›</span>
+              <span>Open lobby for the community</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-glow">›</span>
+              <span>Stay off the platform kill switch</span>
+            </li>
+          </ul>
+        </div>
+      )}
 
       <div className="border border-edge bg-card p-4">
         <p className="mb-2 font-mono text-xs text-glow">$ channels</p>

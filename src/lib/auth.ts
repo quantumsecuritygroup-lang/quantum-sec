@@ -66,5 +66,5 @@ function sanitizeUsername(s: string): string {
       .toLowerCase()
       .replace(/[^a-z0-9_]/g, "")
       .slice(0, 20) || "member";
-  return `${base}_${Math.random().toString(36).slice(2, 7)}`;
+  return `${base}_${crypto.randomUUID().replace(/-/g, "").slice(0, 5)}`;
 }

@@ -1,18 +1,11 @@
-const MEMBERS = [
-  "Admiral_Luna",
-  "Zeu$",
-  "Ch4nc3ll0rX_1337",
-  "BalutP3noy",
-  "Cyber Frost",
-  "L3l0uch_X",
-  "Z0NR&§",
-  "WYS1WYG030",
-  "Kr0vm4k",
-  "Mr.GW4P$",
-  "Asm0d3usX_",
-];
+import { getRosterMembers } from "@/lib/data";
 
-export function MembersSection({ variant = "full" }: { variant?: "full" | "rail" }) {
+export async function MembersSection({
+  variant = "full",
+}: {
+  variant?: "full" | "rail";
+}) {
+  const members = await getRosterMembers();
   return (
     <section className="border border-edge bg-card p-4">
       <div className="mb-3 border-b border-edge pb-2">
@@ -26,18 +19,23 @@ export function MembersSection({ variant = "full" }: { variant?: "full" | "rail"
           variant === "full" ? "sm:grid-cols-3" : "grid-cols-1"
         }`}
       >
-        {MEMBERS.map((name, i) => (
-          <li key={name} className="flex items-baseline gap-2">
+        {members.map((m, i) => (
+          <li key={m.id} className="flex items-baseline gap-2">
             <span className="w-5 shrink-0 text-right text-faint">
               {String(i + 1).padStart(2, "0")}
             </span>
             <span className="text-glow">›</span>
-            <span className="text-ink/80">{name}</span>
+            <span className="text-ink/80">{m.name}</span>
           </li>
         ))}
+        {members.length === 0 && (
+          <li className="col-span-full py-2 font-mono text-xs text-faint">
+            $ no operators on the roster yet.
+          </li>
+        )}
       </ol>
       <p className="mt-3 border-t border-edge pt-2 font-mono text-[11px] text-faint">
-        $ {MEMBERS.length} operators online.
+        $ {members.length} operators on the roster.
       </p>
     </section>
   );

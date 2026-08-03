@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { adminSetPost } from "@/lib/actions";
 
 export function AdminPostControls({
@@ -13,13 +13,23 @@ export function AdminPostControls({
   hidden: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   const run = (action: string) => {
+    if (action === "delete" && !window.confirm("Delete this post permanently?")) {
+      return;
+    }
     const fd = new FormData();
     fd.set("id", postId);
     fd.set("action", action);
+    setError(null);
     startTransition(async () => {
-      await adminSetPost(fd);
+      try {
+        const res = await adminSetPost(fd);
+        if (res?.error) setError(res.error);
+      } catch {
+        setError("Action failed. Try again.");
+      }
     });
   };
 
@@ -44,6 +54,7 @@ export function AdminPostControls({
         DELETE
       </button>
       {pending && <span className="text-faint">...</span>}
+      {error && <span className="text-danger">!</span>}
     </div>
   );
 }
