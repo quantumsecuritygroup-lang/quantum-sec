@@ -53,3 +53,6 @@ dev.err.log
 # agent tooling (local skills, not app code)
 .agents/
 skills-lock.json
+
+.vercel
+.env*
